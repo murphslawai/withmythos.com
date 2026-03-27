@@ -557,16 +557,40 @@
             if (!autoScrollEnabled || !section) return;
             autoScrolling = true;
             const rect = section.getBoundingClientRect();
-            const targetY = window.scrollY + rect.top - (window.innerHeight - rect.height) / 2;
-            window.scrollTo({ top: Math.max(0, targetY), behavior: 'smooth' });
-            // Smooth scroll typically finishes in ~500-1000ms. Reset flag after.
-            setTimeout(() => { autoScrolling = false; }, 1200);
+            const targetY = Math.max(0, window.scrollY + rect.top - (window.innerHeight - rect.height) / 2);
+            const startY = window.scrollY;
+            const distance = targetY - startY;
+            const duration = 1800; // ms — slow, gentle drift
+            let startTime = null;
+
+            function easeInOutCubic(t) {
+                return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+            }
+
+            function step(timestamp) {
+                if (!autoScrolling) return; // User interrupted, bail
+                if (!startTime) startTime = timestamp;
+                const elapsed = timestamp - startTime;
+                const progress = Math.min(elapsed / duration, 1);
+                window.scrollTo(0, startY + distance * easeInOutCubic(progress));
+                if (progress < 1) {
+                    requestAnimationFrame(step);
+                } else {
+                    autoScrolling = false;
+                }
+            }
+            requestAnimationFrame(step);
         }
 
         // Any user-initiated scroll/touch kills auto-scroll.
         // We distinguish user scrolls from programmatic ones via the autoScrolling flag.
         function onUserScroll() {
-            if (autoScrolling) return; // This is our programmatic scroll, ignore
+            if (autoScrolling) {
+                // User interrupted mid-drift — kill the animation
+                autoScrolling = false;
+                autoScrollEnabled = false;
+                return;
+            }
             autoScrollEnabled = false;
         }
 
@@ -688,10 +712,10 @@
                     section.classList.add('typed');
                     activeTypingSection = null;
                     isTyping = false;
-                    // Auto-scroll to the next section after a brief beat
+                    // Auto-scroll to the next section after a longer breath
                     const next = getNextSection(section);
                     if (next && !next.classList.contains('typed')) {
-                        setTimeout(() => autoScrollTo(next), 600);
+                        setTimeout(() => autoScrollTo(next), 1200);
                     }
                     processQueue();
                     return;
