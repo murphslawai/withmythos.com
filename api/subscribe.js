@@ -1,7 +1,7 @@
-// Vercel Serverless Function — stores emails in Vercel KV (Redis)
-// Add KV store via: Vercel Dashboard → Storage → Create KV Database → Link to project
+// Vercel Serverless Function — stores emails in Vercel Postgres
+// Setup: Vercel Dashboard → Storage → Create Postgres Database → Link to project
 
-import { kv } from '@vercel/kv';
+import { sql } from '@vercel/postgres';
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
@@ -15,19 +15,26 @@ export default async function handler(req, res) {
   }
 
   try {
-    // Store with timestamp, keyed by email (natural dedup)
-    await kv.hset(`subscriber:${email}`, {
-      email,
-      subscribedAt: new Date().toISOString(),
-      source: 'withmythos.com'
-    });
+    // Create table if it doesn't exist (idempotent)
+    await sql`
+      CREATE TABLE IF NOT EXISTS subscribers (
+        id SERIAL PRIMARY KEY,
+        email TEXT UNIQUE NOT NULL,
+        subscribed_at TIMESTAMPTZ DEFAULT NOW(),
+        source TEXT DEFAULT 'withmythos.com'
+      )
+    `;
 
-    // Also add to a set for easy listing
-    await kv.sadd('subscribers', email);
+    // Insert with conflict handling (natural dedup)
+    await sql`
+      INSERT INTO subscribers (email)
+      VALUES (${email})
+      ON CONFLICT (email) DO NOTHING
+    `;
 
     return res.status(200).json({ ok: true });
   } catch (err) {
-    console.error('KV write failed:', err);
+    console.error('Postgres write failed:', err);
     return res.status(500).json({ error: 'Internal error' });
   }
 }
