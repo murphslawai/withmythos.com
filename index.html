@@ -588,6 +588,9 @@
 
         // Any user-initiated scroll/touch kills auto-scroll.
         // We distinguish user scrolls from programmatic ones via the autoScrolling flag.
+        let lastUserScrollTime = 0;
+        let scrollIdleTimer = null;
+
         function restoreAllSections() {
             // Make all sections visible again so normal scrolling works
             allTypeSections.forEach(s => {
@@ -605,6 +608,13 @@
                 return;
             }
             autoScrollEnabled = false;
+            lastUserScrollTime = Date.now();
+
+            // After user stops scrolling for 1s, allow dwell observer to re-enable
+            clearTimeout(scrollIdleTimer);
+            scrollIdleTimer = setTimeout(() => {
+                lastUserScrollTime = 0; // Clear the block
+            }, 1000);
         }
 
         // Re-enable auto-scroll when user stops interacting and a section finishes typing
@@ -765,8 +775,10 @@
                     visibleSections.add(section);
                     if (!dwellTimers.has(section) && !section.classList.contains('active') && !section.classList.contains('typed')) {
                         dwellTimers.set(section, setTimeout(() => {
-                            // Re-enable auto-scroll when user arrives at a new section
-                            autoScrollEnabled = true;
+                            // Re-enable auto-scroll once scroll momentum has fully stopped
+                            if (Date.now() - lastUserScrollTime > 800) {
+                                autoScrollEnabled = true;
+                            }
                             enqueueSection(section);
                             dwellTimers.delete(section);
                         }, 275));
