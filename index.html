@@ -588,11 +588,20 @@
 
         // Any user-initiated scroll/touch kills auto-scroll.
         // We distinguish user scrolls from programmatic ones via the autoScrolling flag.
+        function restoreAllSections() {
+            // Make all sections visible again so normal scrolling works
+            allTypeSections.forEach(s => {
+                s.style.transition = 'none';
+                s.style.opacity = '1';
+            });
+        }
+
         function onUserScroll() {
             if (autoScrolling) {
-                // User interrupted mid-drift — kill the animation
+                // User interrupted mid-fade — kill it and restore everything
                 autoScrolling = false;
                 autoScrollEnabled = false;
+                restoreAllSections();
                 return;
             }
             autoScrollEnabled = false;
@@ -602,11 +611,13 @@
         // (handled in processQueue completion)
 
         window.addEventListener('wheel', onUserScroll, { passive: true });
-        window.addEventListener('touchstart', () => { autoScrollEnabled = false; }, { passive: true });
+        window.addEventListener('touchstart', () => { autoScrolling = false; autoScrollEnabled = false; restoreAllSections(); }, { passive: true });
         // Keyboard scrolling
         window.addEventListener('keydown', (e) => {
             if (['ArrowDown','ArrowUp','PageDown','PageUp','Space'].includes(e.code)) {
+                autoScrolling = false;
                 autoScrollEnabled = false;
+                restoreAllSections();
             }
         });
 
