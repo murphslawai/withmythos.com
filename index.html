@@ -540,6 +540,48 @@
 
         let activeTypingSection = null; // Track which section is currently typing
 
+        // Auto-scroll: after a section finishes typing, gently scroll to center the next one.
+        // User interaction kills auto-scroll instantly. Resumes when next section finishes typing.
+        let autoScrollEnabled = true;
+        let autoScrolling = false; // true while a programmatic scroll is in flight
+
+        const allTypeSections = Array.from(document.querySelectorAll('.type-section'));
+
+        function getNextSection(current) {
+            const idx = allTypeSections.indexOf(current);
+            if (idx === -1 || idx >= allTypeSections.length - 1) return null;
+            return allTypeSections[idx + 1];
+        }
+
+        function autoScrollTo(section) {
+            if (!autoScrollEnabled || !section) return;
+            autoScrolling = true;
+            const rect = section.getBoundingClientRect();
+            const targetY = window.scrollY + rect.top - (window.innerHeight - rect.height) / 2;
+            window.scrollTo({ top: Math.max(0, targetY), behavior: 'smooth' });
+            // Smooth scroll typically finishes in ~500-1000ms. Reset flag after.
+            setTimeout(() => { autoScrolling = false; }, 1200);
+        }
+
+        // Any user-initiated scroll/touch kills auto-scroll.
+        // We distinguish user scrolls from programmatic ones via the autoScrolling flag.
+        function onUserScroll() {
+            if (autoScrolling) return; // This is our programmatic scroll, ignore
+            autoScrollEnabled = false;
+        }
+
+        // Re-enable auto-scroll when user stops interacting and a section finishes typing
+        // (handled in processQueue completion)
+
+        window.addEventListener('wheel', onUserScroll, { passive: true });
+        window.addEventListener('touchstart', () => { autoScrollEnabled = false; }, { passive: true });
+        // Keyboard scrolling
+        window.addEventListener('keydown', (e) => {
+            if (['ArrowDown','ArrowUp','PageDown','PageUp','Space'].includes(e.code)) {
+                autoScrollEnabled = false;
+            }
+        });
+
         function typeText(el, text, speed, callback) {
             let i = 0;
             let cancelled = false;
@@ -646,6 +688,11 @@
                     section.classList.add('typed');
                     activeTypingSection = null;
                     isTyping = false;
+                    // Auto-scroll to the next section after a brief beat
+                    const next = getNextSection(section);
+                    if (next && !next.classList.contains('typed')) {
+                        setTimeout(() => autoScrollTo(next), 600);
+                    }
                     processQueue();
                     return;
                 }
@@ -679,6 +726,8 @@
                     visibleSections.add(section);
                     if (!dwellTimers.has(section) && !section.classList.contains('active') && !section.classList.contains('typed')) {
                         dwellTimers.set(section, setTimeout(() => {
+                            // Re-enable auto-scroll when user arrives at a new section
+                            autoScrollEnabled = true;
                             enqueueSection(section);
                             dwellTimers.delete(section);
                         }, 275));
