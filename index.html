@@ -479,9 +479,9 @@
         <section class="align-center short type-section mobile-gap" data-stagger="true">
             <div>
                 <h2 style="color:var(--ink-light);">
-                    <span class="line" data-text="They always were." data-speed="90" style="font-style:italic;"></span>
+                    <span class="line" data-text="They always were." data-speed="55" style="font-style:italic;"></span>
                     <span class="line-sub" data-text="They always are."></span>
-                    <span class="line" data-text="They always will be." data-speed="90" style="margin-top:0.4em; color:var(--ink);"></span>
+                    <span class="line" data-text="They always will be." data-speed="55" style="margin-top:0.4em; color:var(--ink);"></span>
                 </h2>
             </div>
         </section>
@@ -501,7 +501,7 @@
             <div>
                 <h2>
                     <span class="line" data-text="Not backward. Not forward."></span>
-                    <span class="line-sub" data-text="Through." data-speed="120"></span>
+                    <span class="line-sub" data-text="Through." data-speed="75"></span>
                 </h2>
             </div>
         </section>
@@ -534,51 +534,84 @@
     </main>
 
     <script>
-        // Typewriter engine — pauses are driven by punctuation and rhythm, not manual indices.
-        // After a period: 350ms breath. After ellipsis dots: 280ms each. After comma: 150ms.
-        // "Through." gets its own slower speed via data-speed attribute.
+        // Typewriter engine — faster baseline, trimmed pauses
+        // Main: 40ms/char. Sub: 30ms/char. Punctuation pauses kept but tightened.
+        // Sections that are scrolled past complete instantly.
+
+        let activeTypingSection = null; // Track which section is currently typing
+
         function typeText(el, text, speed, callback) {
             let i = 0;
+            let cancelled = false;
             const cursor = document.createElement('span');
             cursor.className = 'cursor';
             el.appendChild(cursor);
 
+            // Expose cancel method so scroll-away can instant-complete
+            el._cancelTyping = () => {
+                if (cancelled) return;
+                cancelled = true;
+                // Fill remaining text instantly
+                const remaining = text.substring(i);
+                if (remaining) el.insertBefore(document.createTextNode(remaining), cursor);
+                cursor.classList.add('done');
+                setTimeout(() => { if (cursor.parentNode) cursor.remove(); }, 200);
+                if (callback) callback();
+            };
+
             function type() {
+                if (cancelled) return;
                 if (i < text.length) {
                     const char = text[i];
                     el.insertBefore(document.createTextNode(char), cursor);
                     i++;
 
-                    // Natural pause logic based on what we just typed
                     let pause = 0;
                     if (char === '.' && text[i] === '.' && text[i - 2] !== '.') {
-                        // First dot of ellipsis
-                        pause = 280;
+                        pause = 150; // First dot of ellipsis
                     } else if (char === '.' && text[i - 2] === '.') {
-                        // Last dot of ellipsis — longer, the thought trailing off
-                        pause = 450;
+                        pause = 250; // Last dot — thought trailing off
                     } else if (char === '.' && text[i - 2] !== '.') {
-                        // Period (end of sentence within a line)
-                        pause = 350;
+                        pause = 200; // Period
                     } else if (char === ',') {
-                        pause = 150;
+                        pause = 80;
                     }
 
-                    // Gentle jitter (±8ms, subtle)
-                    const jitter = speed + (Math.random() * 16 - 8);
-                    setTimeout(type, Math.max(30, jitter) + pause);
+                    const jitter = speed + (Math.random() * 12 - 6);
+                    setTimeout(type, Math.max(20, jitter) + pause);
                 } else {
                     cursor.classList.add('done');
                     setTimeout(() => {
                         if (cursor.parentNode) cursor.remove();
                         if (callback) callback();
-                    }, 600);
+                    }, 400);
                 }
             }
             type();
         }
 
-        // typeSection is now handled by the queue system (enqueueSection → processQueue)
+        // Instantly reveal all text in a section (no typing animation)
+        function revealSection(section) {
+            if (section.classList.contains('typed')) return;
+            section.classList.add('active', 'typed');
+            section.querySelectorAll('[data-text]').forEach(line => {
+                if (!line.textContent) {
+                    line.textContent = line.dataset.text;
+                }
+            });
+        }
+
+        // Cancel any active typing in a section and complete it
+        function instantComplete(section) {
+            section.querySelectorAll('[data-text]').forEach(line => {
+                if (line._cancelTyping) {
+                    line._cancelTyping();
+                } else if (!line.textContent.replace('\u200B', '')) {
+                    line.textContent = line.dataset.text;
+                }
+            });
+            section.classList.add('active', 'typed');
+        }
 
         // Typing queue — only one section types at a time
         const typeQueue = [];
@@ -595,52 +628,55 @@
             if (isTyping || typeQueue.length === 0) return;
             isTyping = true;
             const section = typeQueue.shift();
-            // Store original callback to chain queue
-            const origTypeSection = () => {
-                if (section.classList.contains('active') || section.classList.contains('typed')) {
+
+            if (section.classList.contains('active') || section.classList.contains('typed')) {
+                isTyping = false;
+                processQueue();
+                return;
+            }
+
+            activeTypingSection = section;
+            section.classList.add('active');
+            const lines = section.querySelectorAll('[data-text]');
+            const isStagger = section.dataset.stagger === 'true';
+            let lineIndex = 0;
+
+            function typeLine() {
+                if (lineIndex >= lines.length) {
+                    section.classList.add('typed');
+                    activeTypingSection = null;
                     isTyping = false;
                     processQueue();
                     return;
                 }
-                section.classList.add('active');
-                const lines = section.querySelectorAll('[data-text]');
-                const isStagger = section.dataset.stagger === 'true';
-                let lineIndex = 0;
+                const line = lines[lineIndex];
+                const text = line.dataset.text;
+                const isSub = line.classList.contains('line-sub');
+                const speed = line.dataset.speed ? parseInt(line.dataset.speed) : (isSub ? 30 : 40);
+                const customGap = section.dataset.lineGap ? parseInt(section.dataset.lineGap) : null;
+                const delay = isStagger && lineIndex > 0 ? 800
+                    : lineIndex > 0 && customGap !== null ? customGap
+                    : (isSub ? 400 : 0);
 
-                function typeLine() {
-                    if (lineIndex >= lines.length) {
-                        section.classList.add('typed');
-                        isTyping = false;
-                        processQueue();
-                        return;
-                    }
-                    const line = lines[lineIndex];
-                    const text = line.dataset.text;
-                    const isSub = line.classList.contains('line-sub');
-                    const speed = line.dataset.speed ? parseInt(line.dataset.speed) : (isSub ? 55 : 70);
-                    const customGap = section.dataset.lineGap ? parseInt(section.dataset.lineGap) : null;
-                    const delay = isStagger && lineIndex > 0 ? 1200
-                        : lineIndex > 0 && customGap !== null ? customGap
-                        : (isSub ? 600 : 0);
-
-                    setTimeout(() => {
-                        typeText(line, text, speed, () => {
-                            lineIndex++;
-                            typeLine();
-                        });
-                    }, delay);
-                }
-                typeLine();
-            };
-            origTypeSection();
+                setTimeout(() => {
+                    typeText(line, text, speed, () => {
+                        lineIndex++;
+                        typeLine();
+                    });
+                }, delay);
+            }
+            typeLine();
         }
 
-        // Dwell-based observer: section must be 60% visible for 400ms before typing starts
+        // Dwell-based observer + instant-complete on scroll-away
         const dwellTimers = new Map();
+        const visibleSections = new Set();
+
         const typeObserver = new IntersectionObserver((entries) => {
             entries.forEach(entry => {
                 const section = entry.target;
                 if (entry.isIntersecting) {
+                    visibleSections.add(section);
                     if (!dwellTimers.has(section) && !section.classList.contains('active') && !section.classList.contains('typed')) {
                         dwellTimers.set(section, setTimeout(() => {
                             enqueueSection(section);
@@ -648,10 +684,26 @@
                         }, 275));
                     }
                 } else {
-                    // Scrolled away before dwell completed — cancel
+                    visibleSections.delete(section);
+                    // Cancel dwell timer
                     if (dwellTimers.has(section)) {
                         clearTimeout(dwellTimers.get(section));
                         dwellTimers.delete(section);
+                    }
+                    // If this section was actively typing or queued, instant-complete it
+                    if (section.classList.contains('active') && !section.classList.contains('typed')) {
+                        instantComplete(section);
+                        if (activeTypingSection === section) {
+                            activeTypingSection = null;
+                            isTyping = false;
+                            processQueue();
+                        }
+                    }
+                    // If queued but not started, reveal instantly
+                    const qIdx = typeQueue.indexOf(section);
+                    if (qIdx !== -1) {
+                        typeQueue.splice(qIdx, 1);
+                        revealSection(section);
                     }
                 }
             });
@@ -669,7 +721,6 @@
             const opening = document.querySelector('[data-auto="true"]');
             if (opening) {
                 enqueueSection(opening);
-                // Fade the watermark as typing begins
                 const watermark = document.querySelector('.logo-watermark');
                 if (watermark) watermark.classList.add('fade');
             }
