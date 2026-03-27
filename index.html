@@ -588,46 +588,87 @@
 
         // Any user-initiated scroll/touch kills auto-scroll.
         // We distinguish user scrolls from programmatic ones via the autoScrolling flag.
-        let lastUserScrollTime = 0;
         let scrollIdleTimer = null;
 
         function restoreAllSections() {
-            // Make all sections visible again so normal scrolling works
             allTypeSections.forEach(s => {
                 s.style.transition = 'none';
                 s.style.opacity = '1';
             });
         }
 
+        function getMostVisibleSection() {
+            let best = null;
+            let bestVisible = 0;
+            allTypeSections.forEach(s => {
+                const rect = s.getBoundingClientRect();
+                const top = Math.max(0, rect.top);
+                const bottom = Math.min(window.innerHeight, rect.bottom);
+                const visible = Math.max(0, bottom - top);
+                if (visible > bestVisible) {
+                    bestVisible = visible;
+                    best = s;
+                }
+            });
+            return best;
+        }
+
+        function resumeAutoFromCurrentSection() {
+            autoScrollEnabled = true;
+            const current = getMostVisibleSection();
+            if (!current) return;
+
+            // Already typed and not actively typing — advance now
+            if (current.classList.contains('typed') && activeTypingSection !== current) {
+                const next = getNextSection(current);
+                if (next && !next.classList.contains('typed')) {
+                    setTimeout(() => autoScrollTo(next, current), 1200);
+                }
+            }
+            // If it's currently typing, the typing completion handler will take over
+            // If it hasn't started yet, the dwell observer will enqueue it
+        }
+
         function onUserScroll() {
             if (autoScrolling) {
-                // User interrupted mid-fade — kill it and restore everything
                 autoScrolling = false;
                 autoScrollEnabled = false;
                 restoreAllSections();
                 return;
             }
             autoScrollEnabled = false;
-            lastUserScrollTime = Date.now();
 
-            // After user stops scrolling for 1s, allow dwell observer to re-enable
+            // After scroll fully stops (1.2s of silence), figure out where they are and resume
             clearTimeout(scrollIdleTimer);
             scrollIdleTimer = setTimeout(() => {
-                lastUserScrollTime = 0; // Clear the block
-            }, 1000);
+                resumeAutoFromCurrentSection();
+            }, 1200);
         }
 
         // Re-enable auto-scroll when user stops interacting and a section finishes typing
         // (handled in processQueue completion)
 
         window.addEventListener('wheel', onUserScroll, { passive: true });
-        window.addEventListener('touchstart', () => { autoScrolling = false; autoScrollEnabled = false; restoreAllSections(); }, { passive: true });
+        window.addEventListener('touchstart', () => {
+            if (autoScrolling) { autoScrolling = false; restoreAllSections(); }
+            autoScrollEnabled = false;
+            clearTimeout(scrollIdleTimer);
+        }, { passive: true });
+        window.addEventListener('touchend', () => {
+            clearTimeout(scrollIdleTimer);
+            scrollIdleTimer = setTimeout(() => {
+                resumeAutoFromCurrentSection();
+            }, 1200);
+        }, { passive: true });
         // Keyboard scrolling
         window.addEventListener('keydown', (e) => {
             if (['ArrowDown','ArrowUp','PageDown','PageUp','Space'].includes(e.code)) {
-                autoScrolling = false;
+                if (autoScrolling) { autoScrolling = false; restoreAllSections(); }
                 autoScrollEnabled = false;
-                restoreAllSections();
+                clearTimeout(scrollIdleTimer);
+                scrollIdleTimer = setTimeout(() => {
+                    resumeAutoFromCurrentSection();
+                }, 1200);
             }
         });
 
