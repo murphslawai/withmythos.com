@@ -96,12 +96,25 @@
         }
         
         /* Mobile-specific line spacing and sizing adjustments */
+        /* Scroll snap — gentle proximity mode so sections land naturally */
+        html {
+            scroll-snap-type: y proximity;
+            scroll-behavior: smooth;
+        }
+        section.type-section, section.opening {
+            scroll-snap-align: center;
+            scroll-snap-stop: always;
+        }
+
         @media (max-width: 767px) {
             h2 { font-size: clamp(1.65rem, 4.2vw, 4.5rem); }
             .mobile-tighter h2 { font-size: clamp(1.5rem, 3.8vw, 4.5rem); }
             .mobile-gap .line-sub { margin-top: 0.6em; }
-            section.tall { min-height: 85vh; } /* Less aggressive tall sections on mobile */
-            section.medium { min-height: 60vh; }
+            /* More breathing room on mobile — each section owns its screen */
+            section.tall { min-height: 100vh; }
+            section.medium { min-height: 90vh; }
+            section.short { min-height: 80vh; }
+            section.breath { min-height: 70vh; }
         }
         @media (min-width: 768px) {
             .align-left .line-sub { margin-left: 4rem; }
@@ -522,46 +535,68 @@
             type();
         }
 
-        function typeSection(section) {
+        // typeSection is now handled by the queue system (enqueueSection → processQueue)
+
+        // Typing queue — only one section types at a time
+        const typeQueue = [];
+        let isTyping = false;
+
+        function enqueueSection(section) {
             if (section.classList.contains('active') || section.classList.contains('typed')) return;
-            section.classList.add('active');
+            if (typeQueue.includes(section)) return;
+            typeQueue.push(section);
+            processQueue();
+        }
 
-            const lines = section.querySelectorAll('[data-text]');
-            const isStagger = section.dataset.stagger === 'true';
-            let lineIndex = 0;
-
-            function typeLine() {
-                if (lineIndex >= lines.length) {
-                    section.classList.add('typed');
+        function processQueue() {
+            if (isTyping || typeQueue.length === 0) return;
+            isTyping = true;
+            const section = typeQueue.shift();
+            // Store original callback to chain queue
+            const origTypeSection = () => {
+                if (section.classList.contains('active') || section.classList.contains('typed')) {
+                    isTyping = false;
+                    processQueue();
                     return;
                 }
-                const line = lines[lineIndex];
-                const text = line.dataset.text;
-                const isSub = line.classList.contains('line-sub');
-                // Per-line override via data-speed, otherwise defaults
-                const speed = line.dataset.speed ? parseInt(line.dataset.speed) : (isSub ? 55 : 70);
-                // Per-section line gap override, otherwise defaults
-                const customGap = section.dataset.lineGap ? parseInt(section.dataset.lineGap) : null;
-                const delay = isStagger && lineIndex > 0 ? 1200
-                    : lineIndex > 0 && customGap !== null ? customGap
-                    : (isSub ? 600 : 0);
+                section.classList.add('active');
+                const lines = section.querySelectorAll('[data-text]');
+                const isStagger = section.dataset.stagger === 'true';
+                let lineIndex = 0;
 
-                setTimeout(() => {
-                    typeText(line, text, speed, () => {
-                        lineIndex++;
-                        typeLine();
-                    });
-                }, delay);
-            }
+                function typeLine() {
+                    if (lineIndex >= lines.length) {
+                        section.classList.add('typed');
+                        isTyping = false;
+                        processQueue();
+                        return;
+                    }
+                    const line = lines[lineIndex];
+                    const text = line.dataset.text;
+                    const isSub = line.classList.contains('line-sub');
+                    const speed = line.dataset.speed ? parseInt(line.dataset.speed) : (isSub ? 55 : 70);
+                    const customGap = section.dataset.lineGap ? parseInt(section.dataset.lineGap) : null;
+                    const delay = isStagger && lineIndex > 0 ? 1200
+                        : lineIndex > 0 && customGap !== null ? customGap
+                        : (isSub ? 600 : 0);
 
-            typeLine();
+                    setTimeout(() => {
+                        typeText(line, text, speed, () => {
+                            lineIndex++;
+                            typeLine();
+                        });
+                    }, delay);
+                }
+                typeLine();
+            };
+            origTypeSection();
         }
 
         // Intersection observer for scroll-triggered typing
         const typeObserver = new IntersectionObserver((entries) => {
             entries.forEach(entry => {
                 if (entry.isIntersecting) {
-                    typeSection(entry.target);
+                    enqueueSection(entry.target);
                 }
             });
         }, { threshold: 0.5 });
@@ -577,7 +612,7 @@
         setTimeout(() => {
             const opening = document.querySelector('[data-auto="true"]');
             if (opening) {
-                typeSection(opening);
+                enqueueSection(opening);
                 // Fade the watermark as typing begins
                 const watermark = document.querySelector('.logo-watermark');
                 if (watermark) watermark.classList.add('fade');
