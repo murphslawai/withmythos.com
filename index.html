@@ -737,6 +737,8 @@
                     section.classList.add('typed');
                     activeTypingSection = null;
                     isTyping = false;
+                    // Re-enable auto-scroll now — typing took seconds, scroll momentum is long gone
+                    autoScrollEnabled = true;
                     // Fade to next section after a breath
                     const next = getNextSection(section);
                     if (next && !next.classList.contains('typed')) {
@@ -775,10 +777,6 @@
                     visibleSections.add(section);
                     if (!dwellTimers.has(section) && !section.classList.contains('active') && !section.classList.contains('typed')) {
                         dwellTimers.set(section, setTimeout(() => {
-                            // Re-enable auto-scroll once scroll momentum has fully stopped
-                            if (Date.now() - lastUserScrollTime > 800) {
-                                autoScrollEnabled = true;
-                            }
                             enqueueSection(section);
                             dwellTimers.delete(section);
                         }, 275));
