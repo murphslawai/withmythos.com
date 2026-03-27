@@ -553,33 +553,37 @@
             return allTypeSections[idx + 1];
         }
 
-        function autoScrollTo(section) {
-            if (!autoScrollEnabled || !section) return;
+        function autoScrollTo(nextSection, currentSection) {
+            if (!autoScrollEnabled || !nextSection) return;
             autoScrolling = true;
-            const rect = section.getBoundingClientRect();
-            const targetY = Math.max(0, window.scrollY + rect.top - (window.innerHeight - rect.height) / 2);
-            const startY = window.scrollY;
-            const distance = targetY - startY;
-            const duration = 1800; // ms — slow, gentle drift
-            let startTime = null;
 
-            function easeInOutCubic(t) {
-                return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+            // Fade out current section's text
+            if (currentSection) {
+                currentSection.style.transition = 'opacity 0.8s ease';
+                currentSection.style.opacity = '0';
             }
 
-            function step(timestamp) {
-                if (!autoScrolling) return; // User interrupted, bail
-                if (!startTime) startTime = timestamp;
-                const elapsed = timestamp - startTime;
-                const progress = Math.min(elapsed / duration, 1);
-                window.scrollTo(0, startY + distance * easeInOutCubic(progress));
-                if (progress < 1) {
-                    requestAnimationFrame(step);
-                } else {
-                    autoScrolling = false;
-                }
-            }
-            requestAnimationFrame(step);
+            // After fade-out: instantly jump to next section (invisible), then fade in + type
+            setTimeout(() => {
+                if (!autoScrolling) return; // User interrupted during fade
+
+                // Jump instantly (no smooth scroll — no visible motion)
+                const rect = nextSection.getBoundingClientRect();
+                const targetY = Math.max(0, window.scrollY + rect.top - (window.innerHeight - rect.height) / 2);
+                window.scrollTo(0, targetY);
+
+                // Start next section invisible, then fade in
+                nextSection.style.opacity = '0';
+                nextSection.style.transition = 'opacity 0.8s ease';
+                requestAnimationFrame(() => {
+                    nextSection.style.opacity = '1';
+                });
+
+                autoScrolling = false;
+
+                // The dwell observer will pick up the section and start typing
+                // since we just scrolled it into view
+            }, 900); // 800ms fade + 100ms breath
         }
 
         // Any user-initiated scroll/touch kills auto-scroll.
@@ -712,10 +716,10 @@
                     section.classList.add('typed');
                     activeTypingSection = null;
                     isTyping = false;
-                    // Auto-scroll to the next section after a longer breath
+                    // Fade to next section after a breath
                     const next = getNextSection(section);
                     if (next && !next.classList.contains('typed')) {
-                        setTimeout(() => autoScrollTo(next), 1200);
+                        setTimeout(() => autoScrollTo(next, section), 1200);
                     }
                     processQueue();
                     return;
