@@ -96,16 +96,6 @@
         }
         
         /* Mobile-specific line spacing and sizing adjustments */
-        /* Scroll snap — gentle proximity mode so sections land naturally */
-        html {
-            scroll-snap-type: y proximity;
-            scroll-behavior: smooth;
-        }
-        section.type-section, section.opening {
-            scroll-snap-align: center;
-            scroll-snap-stop: always;
-        }
-
         @media (max-width: 767px) {
             h2 { font-size: clamp(1.65rem, 4.2vw, 4.5rem); }
             .mobile-tighter h2 { font-size: clamp(1.5rem, 3.8vw, 4.5rem); }
@@ -284,6 +274,47 @@
         .email-btn:hover { background: var(--ink-light); }
 
         /* Footer */
+        /* Scroll hint arrow */
+        .scroll-hint {
+            position: absolute;
+            bottom: 2.5rem;
+            left: 50%;
+            transform: translateX(-50%);
+            opacity: 0;
+            z-index: 10;
+        }
+        .scroll-hint svg {
+            width: 28px;
+            height: 28px;
+            stroke: var(--ink);
+            stroke-width: 1;
+            fill: none;
+        }
+        .scroll-hint.show {
+            animation: hintFadeIn 2.5s ease forwards;
+        }
+        .scroll-hint.pulse {
+            animation: hintPulse 2.5s ease forwards;
+        }
+        .scroll-hint.gone {
+            animation: hintFadeOut 0.8s ease forwards;
+        }
+        @keyframes hintFadeIn {
+            0% { opacity: 0; transform: translateX(-50%) translateY(-6px); }
+            40% { opacity: 0.18; }
+            70% { opacity: 0.18; transform: translateX(-50%) translateY(4px); }
+            100% { opacity: 0; transform: translateX(-50%) translateY(8px); }
+        }
+        @keyframes hintPulse {
+            0% { opacity: 0; transform: translateX(-50%) translateY(-4px); }
+            35% { opacity: 0.15; }
+            65% { opacity: 0.15; transform: translateX(-50%) translateY(4px); }
+            100% { opacity: 0; transform: translateX(-50%) translateY(6px); }
+        }
+        @keyframes hintFadeOut {
+            to { opacity: 0; }
+        }
+
         .footer-text {
             font-family: 'Inter', sans-serif;
             font-size: 0.6rem;
@@ -309,6 +340,12 @@
                     <span class="line" data-text="Every civilization that survived left behind stories."></span>
                     <span class="line-sub" data-text="Not manuals. Not systems. Myths."></span>
                 </h2>
+            </div>
+            <!-- Scroll hint: thin hand-drawn-style chevron -->
+            <div class="scroll-hint" id="scroll-hint">
+                <svg viewBox="0 0 28 28" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M6 10 C10 15, 13 17, 14 18 C15 17, 18 15, 22 10" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
             </div>
         </section>
 
@@ -592,14 +629,27 @@
             origTypeSection();
         }
 
-        // Intersection observer for scroll-triggered typing
+        // Dwell-based observer: section must be 60% visible for 400ms before typing starts
+        const dwellTimers = new Map();
         const typeObserver = new IntersectionObserver((entries) => {
             entries.forEach(entry => {
+                const section = entry.target;
                 if (entry.isIntersecting) {
-                    enqueueSection(entry.target);
+                    if (!dwellTimers.has(section) && !section.classList.contains('active') && !section.classList.contains('typed')) {
+                        dwellTimers.set(section, setTimeout(() => {
+                            enqueueSection(section);
+                            dwellTimers.delete(section);
+                        }, 400));
+                    }
+                } else {
+                    // Scrolled away before dwell completed — cancel
+                    if (dwellTimers.has(section)) {
+                        clearTimeout(dwellTimers.get(section));
+                        dwellTimers.delete(section);
+                    }
                 }
             });
-        }, { threshold: 0.5 });
+        }, { threshold: 0.6 });
 
         // Observe all type sections (except auto-start)
         document.querySelectorAll('.type-section').forEach(section => {
@@ -618,6 +668,46 @@
                 if (watermark) watermark.classList.add('fade');
             }
         }, 800);
+
+        // Scroll hint: appears after opening finishes typing, pulses every 12s, gone on scroll
+        const scrollHint = document.getElementById('scroll-hint');
+        let hintInterval = null;
+        let hintDismissed = false;
+
+        function showHintOnce() {
+            if (hintDismissed) return;
+            scrollHint.className = 'scroll-hint show';
+            // After animation ends, reset class for next pulse
+            setTimeout(() => {
+                if (!hintDismissed) scrollHint.className = 'scroll-hint';
+            }, 2600);
+        }
+
+        function startHintCycle() {
+            // First appearance after a beat
+            setTimeout(() => {
+                showHintOnce();
+                hintInterval = setInterval(showHintOnce, 12000);
+            }, 1500);
+        }
+
+        // Dismiss on any scroll
+        window.addEventListener('scroll', () => {
+            if (!hintDismissed && window.scrollY > 50) {
+                hintDismissed = true;
+                if (hintInterval) clearInterval(hintInterval);
+                scrollHint.className = 'scroll-hint gone';
+            }
+        }, { passive: true });
+
+        // Hook into opening section completion to start hints
+        const openingCheck = setInterval(() => {
+            const opening = document.querySelector('[data-auto="true"]');
+            if (opening && opening.classList.contains('typed')) {
+                clearInterval(openingCheck);
+                startHintCycle();
+            }
+        }, 500);
 
         // Breather + finale observer
         const fadeObserver = new IntersectionObserver((entries) => {
