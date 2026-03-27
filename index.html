@@ -277,39 +277,42 @@
         /* Scroll hint arrow */
         .scroll-hint {
             position: absolute;
-            bottom: 2.5rem;
+            bottom: 6rem;
             left: 50%;
             transform: translateX(-50%);
             opacity: 0;
             z-index: 10;
         }
+        @media (max-width: 767px) {
+            .scroll-hint { bottom: 5rem; }
+        }
         .scroll-hint svg {
-            width: 28px;
-            height: 28px;
+            width: 38px;
+            height: 38px;
             stroke: var(--ink);
-            stroke-width: 1;
+            stroke-width: 0.8;
             fill: none;
         }
         .scroll-hint.show {
-            animation: hintFadeIn 2.5s ease forwards;
+            animation: hintFadeIn 3s ease forwards;
         }
         .scroll-hint.pulse {
-            animation: hintPulse 2.5s ease forwards;
+            animation: hintPulse 3s ease forwards;
         }
         .scroll-hint.gone {
             animation: hintFadeOut 0.8s ease forwards;
         }
         @keyframes hintFadeIn {
             0% { opacity: 0; transform: translateX(-50%) translateY(-6px); }
-            40% { opacity: 0.18; }
-            70% { opacity: 0.18; transform: translateX(-50%) translateY(4px); }
-            100% { opacity: 0; transform: translateX(-50%) translateY(8px); }
+            30% { opacity: 0.3; }
+            65% { opacity: 0.28; transform: translateX(-50%) translateY(5px); }
+            100% { opacity: 0; transform: translateX(-50%) translateY(10px); }
         }
         @keyframes hintPulse {
             0% { opacity: 0; transform: translateX(-50%) translateY(-4px); }
-            35% { opacity: 0.15; }
-            65% { opacity: 0.15; transform: translateX(-50%) translateY(4px); }
-            100% { opacity: 0; transform: translateX(-50%) translateY(6px); }
+            30% { opacity: 0.25; }
+            60% { opacity: 0.25; transform: translateX(-50%) translateY(5px); }
+            100% { opacity: 0; transform: translateX(-50%) translateY(8px); }
         }
         @keyframes hintFadeOut {
             to { opacity: 0; }
@@ -341,10 +344,13 @@
                     <span class="line-sub" data-text="Not manuals. Not systems. Myths."></span>
                 </h2>
             </div>
-            <!-- Scroll hint: thin hand-drawn-style chevron -->
+            <!-- Scroll hint: calligraphic downward stroke -->
             <div class="scroll-hint" id="scroll-hint">
-                <svg viewBox="0 0 28 28" xmlns="http://www.w3.org/2000/svg">
-                    <path d="M6 10 C10 15, 13 17, 14 18 C15 17, 18 15, 22 10" stroke-linecap="round" stroke-linejoin="round"/>
+                <svg viewBox="0 0 38 38" xmlns="http://www.w3.org/2000/svg">
+                    <!-- Vertical stroke with slight waver -->
+                    <path d="M19 6 C18.5 12, 19.5 18, 19 26" stroke-linecap="round"/>
+                    <!-- Soft spreading ends -->
+                    <path d="M12 21 C14.5 24, 17 27, 19 30 C21 27, 23.5 24, 26 21" stroke-linecap="round" stroke-linejoin="round"/>
                 </svg>
             </div>
         </section>
@@ -639,7 +645,7 @@
                         dwellTimers.set(section, setTimeout(() => {
                             enqueueSection(section);
                             dwellTimers.delete(section);
-                        }, 400));
+                        }, 275));
                     }
                 } else {
                     // Scrolled away before dwell completed — cancel
