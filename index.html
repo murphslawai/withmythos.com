@@ -72,10 +72,15 @@
 
         /* Typography */
         h2 {
-            font-size: clamp(2rem, 4.5vw, 4.5rem);
+            font-size: clamp(1.85rem, 4.2vw, 4.5rem);
             font-weight: 300;
             line-height: 1.15;
             letter-spacing: -0.01em;
+        }
+        
+        /* Tighter sizing for small laptops (13"/15" MacBooks at 1280-1440px) */
+        @media (min-width: 768px) and (max-width: 1536px) {
+            h2 { font-size: clamp(1.85rem, 3.8vw, 4rem); }
         }
         .line {
             display: block;
@@ -90,10 +95,13 @@
             min-height: 1.2em;
         }
         
-        /* Mobile-specific line spacing adjustments */
+        /* Mobile-specific line spacing and sizing adjustments */
         @media (max-width: 767px) {
-            .mobile-tighter h2 { font-size: clamp(1.75rem, 4vw, 4.5rem); }
+            h2 { font-size: clamp(1.65rem, 4.2vw, 4.5rem); }
+            .mobile-tighter h2 { font-size: clamp(1.5rem, 3.8vw, 4.5rem); }
             .mobile-gap .line-sub { margin-top: 0.6em; }
+            section.tall { min-height: 85vh; } /* Less aggressive tall sections on mobile */
+            section.medium { min-height: 60vh; }
         }
         @media (min-width: 768px) {
             .align-left .line-sub { margin-left: 4rem; }
