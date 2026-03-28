@@ -507,7 +507,7 @@
         </section>
 
         <!-- FINALE -->
-        <section class="align-center" style="min-height:70vh; flex-direction:column; padding-bottom:2rem; padding-top:6rem;">
+        <section id="finale" class="align-center" style="min-height:70vh; flex-direction:column; padding-bottom:2rem; padding-top:6rem;">
             <div style="display:flex; flex-direction:column; align-items:center; text-align:center;">
 
                 <div class="finale-logo logo logo-finale">
@@ -784,6 +784,25 @@
                     const next = getNextSection(section);
                     if (next && !next.classList.contains('typed')) {
                         setTimeout(() => autoScrollTo(next, section), 1200);
+                    } else if (!next) {
+                        // Last typed section — fade to the finale
+                        const finale = document.getElementById('finale');
+                        if (finale) {
+                            setTimeout(() => {
+                                if (!autoScrollEnabled) return;
+                                // Fade out the last section
+                                section.style.transition = 'opacity 0.8s ease';
+                                section.style.opacity = '0';
+                                setTimeout(() => {
+                                    // Jump to finale
+                                    const rect = finale.getBoundingClientRect();
+                                    const targetY = Math.max(0, window.scrollY + rect.top - (window.innerHeight - rect.height) / 2);
+                                    window.scrollTo(0, targetY);
+                                    // Restore all sections in case they scroll back
+                                    restoreAllSections();
+                                }, 900);
+                            }, 1200);
+                        }
                     }
                     processQueue();
                     return;
