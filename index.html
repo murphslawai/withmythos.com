@@ -680,7 +680,7 @@
             el.appendChild(cursor);
 
             // Expose cancel method so scroll-away can instant-complete
-            el._cancelTyping = () => {
+            el._cancelTyping = (suppressCallback) => {
                 if (cancelled) return;
                 cancelled = true;
                 // Fill remaining text instantly
@@ -688,7 +688,7 @@
                 if (remaining) el.insertBefore(document.createTextNode(remaining), cursor);
                 cursor.classList.add('done');
                 setTimeout(() => { if (cursor.parentNode) cursor.remove(); }, 200);
-                if (callback) callback();
+                if (callback && !suppressCallback) callback();
             };
 
             function type() {
@@ -737,7 +737,7 @@
         function instantComplete(section) {
             section.querySelectorAll('[data-text]').forEach(line => {
                 if (line._cancelTyping) {
-                    line._cancelTyping();
+                    line._cancelTyping(true);
                 } else if (!line.textContent.replace('\u200B', '')) {
                     line.textContent = line.dataset.text;
                 }
